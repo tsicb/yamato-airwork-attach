@@ -127,3 +127,92 @@ test("keeps unknown source columns and quoted original cells", () => {
   assert.equal(value(result.rows[1],result.headers,"補足"),"");
   assert.deepEqual(Core.parseCsv(Core.serializeCsv(result)).rows, result.rows);
 });
+
+
+function source(name, text) { return {name, data:Core.parseCsv(text)}; }
+
+test("multiple normal CSVs align column order and append new columns", () => {
+  const a = source("oct.csv",base);
+  const b = source("nov.csv",
+    "応募者名,企業ID,応募日,お仕事NO,補足\n佐藤花子,YAMATO,2026/11/01,JOB002,テスト");
+  const joined = Core.combineNormalFiles([a,b]);
+  assert.equal(joined.data.rows.length,2);
+  assert.equal(joined.data.headers.at(-1),"補足");
+  assert.equal(value(joined.data.rows[0],joined.data.headers,"補足"),"");
+  assert.equal(value(joined.data.rows[1],joined.data.headers,"企業ID"),"YAMATO");
+  assert.equal(value(joined.data.rows[1],joined.data.headers,"お仕事NO"),"JOB002");
+  assert.equal(joined.fileStats[0].count,1);
+  const out = Core.mergeApplications({
+    normal:joined.data, airwork:Core.parseCsv(report), companyCode:"YAMATO"
+  });
+  assert.equal(out.stats.outputCount,7);
+  assert.equal(value(out.rows[2],out.headers,"企業ID"),"YAMATO");
+  assert.equal(value(out.rows[2],out.headers,"企業コード"),"YAMATO");
+});
+
+test("duplicate rows across normal files are warned about, not deleted", () => {
+  const a = source("first.csv",base);
+  const b = source("second.csv",base);
+  const joined = Core.combineNormalFiles([a,b]);
+  assert.equal(joined.duplicateRows,1);
+  assert.equal(joined.data.rows.length,2);
+  const single = Core.parseCsv(base);
+  single.rows.push(single.rows[0].slice());
+  assert.equal(Core.combineNormalFiles([{name:"single.csv",data:single}]).duplicateRows,0);
+});
+
+test("each AirWork report verifies its own total before daily aggregation", () => {
+  const files = [
+    source("oct.csv","配信日,応募数\n合計,2\n2026/10/01,2"),
+    source("nov.csv","配信日,応募数\n合計,3\n2026/11/01,1\n2026/11/02,2")
+  ];
+  const info = Core.combineAirworkFiles(files);
+  assert.equal(info.count,5);
+  assert.equal(info.totalRowFiles,2);
+  assert.equal(info.overlapDayCount,0);
+  assert.deepEqual(info.byDay.map(day => day.count),[2,1,2]);
+  const merged = Core.mergeApplications({
+    normal:Core.parseCsv(base), airworkInfo:info, companyCode:"YAMATO"
+  });
+  assert.equal(merged.stats.outputCount,6);
+  assert.equal(merged.stats.hasTotalRow,true);
+  assert.equal(merged.stats.addedCount,5);
+});
+
+test("repeated dates in separate AirWork files are reported and explicitly summed", () => {
+  const info = Core.combineAirworkFiles([
+    source("one.csv","配信日,応募数\n2026/10/01,2\n2026/10/02,0"),
+    source("two.csv","配信日,応募数\n2026/10/01,3\n2026/10/03,1")
+  ]);
+  assert.equal(info.count,6);
+  assert.deepEqual(info.overlapDates,["2026/10/01"]);
+  assert.equal(info.overlapDayCount,1);
+  assert.equal(info.duplicateDays,1);
+  assert.deepEqual(info.byDay.map(day => day.count),[5,0,1]);
+  assert.equal(info.hasTotalRow,false);
+});
+
+test("malformed source files fail the whole batch", () => {
+  const valid = source("valid.csv","配信日,応募数\n合計,1\n2026/10/01,1");
+  const invalid = source("invalid.csv","配信日,応募数\n合計,2\n2026/10/02,1");
+  assert.throws(() => Core.combineAirworkFiles([valid,invalid]),/一致/);
+  assert.throws(() => Core.combineNormalFiles([
+    source("valid.csv",base),
+    source("invalid.csv","応募日,応募者名\n2026/11/01,山田")
+  ]),/お仕事NO/);
+});
+
+test("a preexisting virtual job in any normal CSV still blocks AirWork append", () => {
+  const joined = Core.combineNormalFiles([
+    source("first.csv",base),
+    source("second.csv",base.replace("JOB001","AIRWORK_ONLY"))
+  ]);
+  assert.throws(() => Core.mergeApplications({
+    normal:joined.data, airwork:Core.parseCsv(report), companyCode:"YAMATO"
+  }),/二重追加/);
+});
+
+test("both combined helpers require at least one input file", () => {
+  assert.throws(() => Core.combineNormalFiles([]),/選択/);
+  assert.throws(() => Core.combineAirworkFiles([]),/選択/);
+});
