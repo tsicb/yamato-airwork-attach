@@ -150,11 +150,82 @@ function analyzeAirwork(airwork) {
     fail("合計行の応募数（" + reported + "）と日別応募数の合計（" + total + "）が一致しません。");
   return {byDay, count: total, sourceRows: entries, hasTotalRow: reported !== null, duplicateDays: entries - byDay.length};
 }
+
+/**
+ * Join normal application exports by column name instead of position.
+ * Source rows remain in input order; repeated rows are never silently deleted.
+ */
+function combineNormalFiles(files) {
+  if (!Array.isArray(files) || !files.length) fail("通常応募CSVを選択してください。");
+  const headers = [];
+  const seenHeaders = new Set();
+  const summaries = [];
+  for (const file of files) {
+    const name = clean(file.name) || "名称未設定";
+    const info = analyzeNormal(file.data);
+    for (const header of file.data.headers) {
+      if (!seenHeaders.has(header)) { headers.push(header); seenHeaders.add(header); }
+    }
+    summaries.push({name, count:info.count});
+  }
+  const rows = [];
+  const rowSources = new Map();
+  let duplicateRows = 0;
+  for (let f = 0; f < files.length; f++) {
+    const file = files[f], positions = headers.map(h => file.data.headers.indexOf(h));
+    for (const original of file.data.rows) {
+      const row = positions.map(pos => pos < 0 ? "" : original[pos]);
+      const key = JSON.stringify(row);
+      const firstSource = rowSources.get(key);
+      if (firstSource === undefined) rowSources.set(key, f);
+      else if (firstSource !== f) duplicateRows++;
+      rows.push(row);
+    }
+  }
+  if (rows.length > 250000) fail("通常応募CSVの行数が25万件を超えます。ファイルを減らしてください。");
+  return {data:{headers,rows}, fileStats:summaries, duplicateRows, addedColumns:headers.length - files[0].data.headers.length};
+}
+
+/**
+ * Validate totals in each AirWork report separately, then add daily counts.
+ * The same date in different reports is a possible overlap, not proof of duplication.
+ */
+function combineAirworkFiles(files) {
+  if (!Array.isArray(files) || !files.length) fail("AirWork実績CSVを選択してください。");
+  const totals = new Map(), seenDates = new Map(), overlapDates = new Set(), fileStats = [];
+  let sourceRows = 0, totalRowFiles = 0;
+  for (let f = 0; f < files.length; f++) {
+    const file = files[f], info = analyzeAirwork(file.data);
+    const name = clean(file.name) || "名称未設定";
+    fileStats.push({name, count:info.count, dayCount:info.byDay.length, hasTotalRow:info.hasTotalRow});
+    sourceRows += info.sourceRows;
+    if (info.hasTotalRow) totalRowFiles++;
+    for (const day of info.byDay) {
+      const firstSource = seenDates.get(day.date);
+      if (firstSource !== undefined && firstSource !== f) overlapDates.add(day.date);
+      else if (firstSource === undefined) seenDates.set(day.date, f);
+      const next = (totals.get(day.date) || 0) + day.count;
+      if (!Number.isSafeInteger(next)) fail("応募数の合計が大きすぎます。");
+      totals.set(day.date, next);
+    }
+  }
+  const byDay = Array.from(totals, ([date,count]) => ({date,count})).sort((a,b) => a.date.localeCompare(b.date));
+  const count = byDay.reduce((sum, day) => sum + day.count, 0);
+  if (!Number.isSafeInteger(count)) fail("応募数の合計が大きすぎます。");
+  return {
+    byDay, count, sourceRows, fileStats, totalRowFiles,
+    hasTotalRow:totalRowFiles === files.length,
+    duplicateDays:sourceRows - byDay.length,
+    overlapDates:Array.from(overlapDates).sort(),
+    overlapDayCount:overlapDates.size
+  };
+}
+
 function mergeApplications(options) {
   const normal = options.normal;
   const airwork = options.airwork;
   const normalInfo = analyzeNormal(normal);
-  const airworkInfo = analyzeAirwork(airwork);
+  const airworkInfo = options.airworkInfo || analyzeAirwork(airwork);
   const company = clean(options.companyCode);
   const companyInfo = normalInfo.companies.find(item => item.code === company);
   if (!companyInfo) fail("企業コードを通常応募CSVの候補から選択してください。");
@@ -212,5 +283,5 @@ function mergeApplications(options) {
     }
   };
 }
-return {parseCsv, serializeCsv, decodeCsv, analyzeNormal, analyzeAirwork, mergeApplications};
+return {parseCsv, serializeCsv, decodeCsv, analyzeNormal, analyzeAirwork, combineNormalFiles, combineAirworkFiles, mergeApplications};
 });
