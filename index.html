@@ -152,6 +152,17 @@
     .filebox input:focus-visible + label { outline: 3px solid #b89410; outline-offset: 3px; }
     .note { font-size: 12px; color: #5c6e61; }
     .file-status { font-size: 12px; color: #176041; margin: 7px 0 0; overflow-wrap: anywhere; font-weight: 650; }
+    .file-list { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+    .file-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid #d4e6d9; border-radius: 8px; background: #fff; font-size: 12px; }
+    .file-list .file-meta { min-width: 0; overflow-wrap: anywhere; }
+    .file-list .file-meta small { display: block; color: #687a6e; }
+    .file-list button { flex-shrink: 0; border: 1px solid #b5cbbd; border-radius: 7px; background: #fff; color: #365747; font-size: 12px; font-weight: 750; padding: 5px 8px; cursor: pointer; }
+    .file-list button:hover { background: #fbeeea; border-color: #d1a89e; }
+    .file-list button:focus-visible { outline: 3px solid #f0cf63; outline-offset: 2px; }
+    .alert.warning { background: #fff5e9; border: 1px solid #deb37c; color: #734514; }
+    .alert.warning p { margin: 0 0 9px; }
+    .alert.warning .confirm { display: flex; align-items: flex-start; gap: 8px; font-weight: 750; cursor: pointer; }
+    .alert.warning input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; accent-color: #176041; }
 
     .field { margin: 16px 0 0; }
     .field label { display: block; font-size: 13px; font-weight: 800; margin-bottom: 6px; }
@@ -289,18 +300,20 @@
         <div class="step"><span>1</span>通常応募CSVを選択</div>
         <div class="filebox" id="normalDrop">
           <strong>応募CSV（「お仕事NO」列のある形式）</strong>
-          <input type="file" id="normalInput" accept=".csv,text/csv" aria-label="通常応募CSV">
-          <label for="normalInput">CSVファイルを選択</label>
-          <p class="note">ここへドラッグ＆ドロップも可能です</p>
+          <input type="file" id="normalInput" accept=".csv,text/csv" aria-label="通常応募CSV（複数選択可能）" multiple>
+          <label for="normalInput">CSVファイルを選択（複数可）</label>
+          <p class="note">複数選択・ドラッグ＆ドロップ可。1ファイル30MB、全入力合計120MBまで。</p>
           <p class="file-status" id="normalStatus">未選択</p>
+          <ul class="file-list" id="normalFileList" aria-label="選択済み通常応募CSV"></ul>
         </div>
         <div class="step"><span>2</span>AirWork実績CSVを選択</div>
         <div class="filebox" id="airDrop">
           <strong>配信日・応募数が含まれる広告詳細CSV</strong>
-          <input type="file" id="airInput" accept=".csv,text/csv" aria-label="AirWork広告実績CSV">
-          <label for="airInput">CSVファイルを選択</label>
-          <p class="note">「合計」行は応募として追加しません</p>
+          <input type="file" id="airInput" accept=".csv,text/csv" aria-label="AirWork広告実績CSV（複数選択可能）" multiple>
+          <label for="airInput">CSVファイルを選択（複数可）</label>
+          <p class="note">複数選択・ドラッグ＆ドロップ可。「合計」行は各ファイルで照合します。</p>
           <p class="file-status" id="airStatus">未選択</p>
+          <ul class="file-list" id="airFileList" aria-label="選択済みAirWork実績CSV"></ul>
         </div>
       </section>
       <section class="panel" aria-labelledby="settingsTitle">
@@ -318,7 +331,11 @@
         <div class="actions">
           <button class="btn" id="mergeBtn" disabled>統合内容を確認</button>
         </div>
-        <p class="alert info" id="infoMsg">2つのCSVを選択すると統合できます。</p>
+        <p class="alert info" id="infoMsg">通常応募CSVとAirWork実績CSVをそれぞれ1ファイル以上選択すると統合できます。</p>
+        <div class="alert warning" id="overlapWarning" hidden>
+          <p id="overlapDetails"></p>
+          <label class="confirm" for="overlapConfirm"><input type="checkbox" id="overlapConfirm"> 重複の可能性を確認しました。表示件数のまま統合します。</label>
+        </div>
         <p class="alert error" id="errorMsg" role="alert" hidden></p>
       </section>
       <section class="panel" id="resultSection" aria-labelledby="resultTitle" hidden>
@@ -347,10 +364,11 @@
       <section class="panel help" aria-labelledby="rulesTitle">
         <h2 id="rulesTitle">変換ルール</h2>
         <ul>
-          <li>通常応募CSVの各行と元の列順を保持し、末尾にAirWork応募を追加します。</li>
+          <li>複数の通常応募CSVは列名で位置を合わせ、元の各行を保持して末尾にAirWork応募を追加します。</li>
           <li>「配信日」を応募日時へ設定し、「応募数」が3なら3行追加します。時刻は作りません。</li>
           <li>応募媒体は<strong>AirWork</strong>、氏名・年齢・居住地など未取得情報は空欄です。</li>
           <li>求人系属性は<strong>AirWork（詳細不明）</strong>として別枠にします。実在求人への突合はしません。</li>
+          <li>別ファイル間の同一応募行や同じAirWork配信日を検出した場合は、確認を求めます。行の自動削除はしません。</li>
           <li>既存の仮想仕事番号が入力にある場合は、二重追加防止のため停止します。</li>
           <li>年齢フィルターや求人CSV突合限定の分析では、AirWorkの応募が対象外になる場合があります。</li>
         </ul>
@@ -363,7 +381,7 @@
       </section>
     </aside>
   </div>
-  <p class="foot">ヤマト専用 AirWork応募CSV統合 v1.1 / ローカル処理</p>
+  <p class="foot">ヤマト専用 AirWork応募CSV統合 v1.2 / ローカル処理</p>
 </main>
 <script src="app-core.js"></script>
 <script>
@@ -371,102 +389,222 @@
   "use strict";
   const Core = window.AirworkAttachCore;
   const $ = id => document.getElementById(id);
-  let normal = null, airwork = null, merged = null;
-  let normalFileName = "", airFileName = "";
+  const selected = {normal:[], airwork:[]};
+  const loading = {normal:false, airwork:false};
+  let normal = null, airworkInfo = null, merged = null;
   const fmt = count => Number(count).toLocaleString("ja-JP");
+  const MAX_FILE_SIZE = 30 * 1024 * 1024, MAX_TOTAL_SIZE = 120 * 1024 * 1024;
   function message(text, error) {
     $("errorMsg").hidden = !error;
     $("errorMsg").textContent = error ? text : "";
     $("infoMsg").hidden = !!error;
     if (!error) $("infoMsg").textContent = text;
   }
-  function resetResult() { merged = null; $("resultSection").hidden = true; $("doneMsg").hidden = true; }
+  function resetResult() {
+    merged = null;
+    $("resultSection").hidden = true;
+    $("doneMsg").hidden = true;
+  }
   function refreshControls() {
-    const ready = !!(normal && airwork && $("companySelect").value);
-    $("mergeBtn").disabled = !ready;
+    const ready = !!(normal && airworkInfo && $("companySelect").value);
+    const checked = $("overlapWarning").hidden || $("overlapConfirm").checked;
+    $("mergeBtn").disabled = !ready || !checked || loading.normal || loading.airwork;
   }
   function updateCompanies() {
-    const select = $("companySelect");
+    const select = $("companySelect"), previous = select.value;
     select.replaceChildren();
     if (!normal) {
       select.add(new Option("通常応募CSVを読み込んでください", ""));
       select.disabled = true;
       return;
     }
-    const info = Core.analyzeNormal(normal);
+    const info = Core.analyzeNormal(normal.data);
     if (info.companies.length > 1) select.add(new Option("追加先の企業コードを選択", ""));
-    for (const item of info.companies) select.add(new Option(item.code + "（既存 " + fmt(item.count) + " 件）", item.code));
+    for (const item of info.companies) {
+      select.add(new Option(item.code + "（既存 " + fmt(item.count) + " 件）", item.code));
+    }
     select.disabled = false;
-    select.value = info.companies.length === 1 ? info.companies[0].code : "";
+    select.value = info.companies.some(item => item.code === previous) ? previous
+      : info.companies.length === 1 ? info.companies[0].code : "";
   }
   function updateAirSummary() {
     const section = $("airSummary");
-    section.hidden = !airwork;
-    if (!airwork) return;
-    const info = Core.analyzeAirwork(airwork);
-    $("airSummaryText").textContent = "追加対象 " + fmt(info.count) + " 件 ／ " + fmt(info.byDay.length) + " 日 ／ 合計行 " + (info.hasTotalRow ? "照合済み" : "なし") + (info.duplicateDays ? " ／ 同一日複数行は合算" : "");
+    section.hidden = !airworkInfo;
+    if (!airworkInfo) return;
+    const info = airworkInfo;
+    $("airSummaryText").textContent =
+      info.fileStats.length + "ファイル ／ 追加対象 " + fmt(info.count) +
+      " 件 ／ " + fmt(info.byDay.length) + " 日 ／ 合計行を照合 " +
+      info.totalRowFiles + "/" + info.fileStats.length + "ファイル" +
+      (info.duplicateDays ? " ／ 同一日複数行は合算" : "");
     const body = $("airByDayBody");
     body.replaceChildren();
     for (const day of info.byDay) {
       const tr = document.createElement("tr");
-      const tdDate = document.createElement("td"), tdCount = document.createElement("td");
-      tdDate.textContent = day.date; tdCount.textContent = fmt(day.count);
-      tr.append(tdDate, tdCount); body.append(tr);
+      const dateCell = document.createElement("td"), countCell = document.createElement("td");
+      dateCell.textContent = day.date;
+      countCell.textContent = fmt(day.count);
+      tr.append(dateCell, countCell); body.append(tr);
     }
+  }
+  function showFileList(kind) {
+    const files = selected[kind];
+    const list = $(kind === "normal" ? "normalFileList" : "airFileList");
+    const status = $(kind === "normal" ? "normalStatus" : "airStatus");
+    list.replaceChildren();
+    const sum = files.reduce((n, item) => n + item.count, 0);
+    status.textContent = files.length
+      ? files.length + "ファイル ／ " + (kind === "normal" ? "既存 " : "AirWork追加 ") + fmt(sum) + " 件"
+      : "未選択";
+    for (let i = 0; i < files.length; i++) {
+      const item = files[i];
+      const li = document.createElement("li");
+      const meta = document.createElement("span"), label = document.createElement("small");
+      meta.className = "file-meta";
+      meta.textContent = item.name;
+      label.textContent = fmt(item.count) + " 件 ／ " + item.encoding;
+      meta.append(label);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "削除";
+      remove.setAttribute("aria-label", item.name + " を選択から削除");
+      remove.disabled = loading[kind];
+      remove.addEventListener("click", () => removeFile(kind, i));
+      li.append(meta, remove);
+      list.append(li);
+    }
+  }
+  function updateWarnings() {
+    const warnings = [];
+    if (normal && normal.duplicateRows) {
+      warnings.push("通常応募CSVの別ファイル間に、全列の値が同一の行が " +
+        fmt(normal.duplicateRows) + " 件あります。重複エクスポートでないか確認してください。");
+    }
+    if (airworkInfo && airworkInfo.overlapDayCount) {
+      const dates = airworkInfo.overlapDates;
+      warnings.push("AirWork CSV間で配信日が重なる日が " + fmt(dates.length) +
+        " 日あります（" + dates.slice(0,5).join("、") +
+        (dates.length > 5 ? " ほか" : "") +
+        "）。別実績なら合算できますが、同じ実績の重複なら二重計上になります。");
+    }
+    $("overlapWarning").hidden = warnings.length === 0;
+    $("overlapDetails").textContent = warnings.join("\n");
+    $("overlapConfirm").checked = false;
+  }
+  function renderState() {
+    resetResult();
+    showFileList("normal");
+    showFileList("airwork");
+    updateCompanies();
+    updateAirSummary();
+    updateWarnings();
+    refreshControls();
+  }
+  function removeFile(kind, index) {
+    if (loading[kind]) return;
+    selected[kind].splice(index,1);
+    rebuild();
+    message("ファイルを選択から削除しました。", false);
+  }
+  function rebuild() {
+    normal = selected.normal.length ? Core.combineNormalFiles(selected.normal) : null;
+    airworkInfo = selected.airwork.length ? Core.combineAirworkFiles(selected.airwork) : null;
+    renderState();
   }
   async function readFile(file) {
-    if (!file) return null;
-    if (file.size > 30 * 1024 * 1024) throw new Error("30MBを超えるCSVは読み込めません。");
-    const decoded = Core.decodeCsv(await file.arrayBuffer());
-    return {data: Core.parseCsv(decoded.text), encoding: decoded.encoding};
+    if (!/\.csv$/i.test(file.name)) throw new Error("CSV形式（.csv）のファイルを選んでください。");
+    if (file.size > MAX_FILE_SIZE) throw new Error("30MBを超えるCSVは読み込めません。");
+    if (!file.size) throw new Error("ファイルが空です。");
+    const buffer = await file.arrayBuffer();
+    const decoded = Core.decodeCsv(buffer);
+    const data = Core.parseCsv(decoded.text);
+    const digest = window.crypto && window.crypto.subtle
+      ? await window.crypto.subtle.digest("SHA-256", buffer) : null;
+    const fingerprint = digest
+      ? Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2,"0")).join("")
+      : [file.name,file.size,file.lastModified].join(":");
+    return {data, encoding:decoded.encoding, fingerprint};
   }
-  async function assignFile(kind, file) {
-    if (!file) return;
-    resetResult();
-    if (kind === "normal") { normal = null; normalFileName = ""; $("normalStatus").textContent = "読み込み中..."; }
-    else { airwork = null; airFileName = ""; $("airStatus").textContent = "読み込み中..."; }
+  async function assignFiles(kind, fileList) {
+    const incoming = Array.from(fileList || []);
+    if (!incoming.length) return;
+    if (loading[kind]) { message("ファイル読み込み中です。完了してから追加してください。", true); return; }
+    loading[kind] = true;
+    $(kind === "normal" ? "normalInput" : "airInput").disabled = true;
     refreshControls();
     try {
-      const parsed = await readFile(file);
-      if (kind === "normal") {
-        const details = Core.analyzeNormal(parsed.data);
-        normal = parsed.data; normalFileName = file.name;
-        $("normalStatus").textContent = file.name + " ／ " + fmt(details.count) + " 行 ／ " + parsed.encoding;
-        updateCompanies();
-      } else {
-        const details = Core.analyzeAirwork(parsed.data);
-        airwork = parsed.data; airFileName = file.name;
-        $("airStatus").textContent = file.name + " ／ 応募 " + fmt(details.count) + " 件 ／ " + parsed.encoding;
-        updateAirSummary();
+      const accepted = [];
+      const known = new Set([...selected.normal, ...selected.airwork].map(item => item.fingerprint));
+      const totalSize = [...selected.normal, ...selected.airwork].reduce((sum, item) => sum + item.size, 0) +
+        incoming.reduce((sum, file) => sum + file.size, 0);
+      if (totalSize > MAX_TOTAL_SIZE) throw new Error("入力ファイルの合計は120MB以内にしてください。");
+      if (selected[kind].length + incoming.length > 40) throw new Error("一度に選択できるCSVは種類ごとに40ファイルまでです。");
+      let skipped = 0;
+      for (const file of incoming) {
+        let parsed;
+        try { parsed = await readFile(file); }
+        catch (err) { throw new Error(file.name + "： " + (err.message || String(err))); }
+        if (known.has(parsed.fingerprint)) { skipped++; continue; }
+        let details;
+        try { details = kind === "normal" ? Core.analyzeNormal(parsed.data) : Core.analyzeAirwork(parsed.data); }
+        catch (err) { throw new Error(file.name + "： " + (err.message || String(err))); }
+        accepted.push({file, name:file.name, size:file.size, fingerprint:parsed.fingerprint,
+          data:parsed.data, encoding:parsed.encoding, count:details.count});
+        known.add(parsed.fingerprint);
       }
-      message("CSVを読み込みました。企業コードを確認して「統合内容を確認」を押してください。", false);
+      const candidate = selected[kind].concat(accepted);
+      // Validate the whole batch before changing the current selection.
+      if (candidate.length) {
+        if (kind === "normal") Core.combineNormalFiles(candidate);
+        else Core.combineAirworkFiles(candidate);
+      }
+      selected[kind] = candidate;
+      rebuild();
+      message(accepted.length
+        ? accepted.length + "ファイルを追加しました。" +
+          (skipped ? " 同じ内容の " + skipped + "ファイルは追加していません。" : "") +
+          " 企業コードと重複警告を確認してください。"
+        : "追加されたファイルはありません。同じ内容の " + skipped + "ファイルを選択済みです。", false);
     } catch (err) {
-      if (kind === "normal") { normal = null; $("normalStatus").textContent = "読み込みできませんでした"; updateCompanies(); }
-      else { airwork = null; $("airStatus").textContent = "読み込みできませんでした"; $("airSummary").hidden = true; }
       message(err.message || String(err), true);
+    } finally {
+      loading[kind] = false;
+      $(kind === "normal" ? "normalInput" : "airInput").disabled = false;
+      showFileList(kind);
+      refreshControls();
     }
-    refreshControls();
   }
   function attachDrop(kind, areaId, inputId) {
     const area = $(areaId), input = $(inputId);
-    input.addEventListener("change", () => { assignFile(kind, input.files[0]); });
-    for (const type of ["dragenter","dragover"]) area.addEventListener(type, event => { event.preventDefault(); area.classList.add("dragover"); });
-    for (const type of ["dragleave","drop"]) area.addEventListener(type, event => { event.preventDefault(); area.classList.remove("dragover"); });
+    input.addEventListener("change", () => {
+      const files = Array.from(input.files);
+      input.value = ""; // Allow choosing the same filename again after removal.
+      assignFiles(kind, files);
+    });
+    for (const type of ["dragenter","dragover"]) {
+      area.addEventListener(type, event => { event.preventDefault(); area.classList.add("dragover"); });
+    }
+    for (const type of ["dragleave","drop"]) {
+      area.addEventListener(type, event => { event.preventDefault(); area.classList.remove("dragover"); });
+    }
     area.addEventListener("drop", event => {
       const files = event.dataTransfer && event.dataTransfer.files;
-      if (files && files.length) assignFile(kind, files[0]);
+      if (files && files.length) assignFiles(kind, files);
     });
   }
   attachDrop("normal", "normalDrop", "normalInput");
   attachDrop("airwork", "airDrop", "airInput");
+  $("overlapConfirm").addEventListener("change", refreshControls);
   $("companySelect").addEventListener("change", () => { resetResult(); refreshControls(); });
   $("jobNoInput").addEventListener("input", resetResult);
   $("mergeBtn").addEventListener("click", () => {
     resetResult();
     try {
-      if (!normal || !airwork) throw new Error("両方のCSVを選んでください。");
+      if (!normal || !airworkInfo) throw new Error("通常応募とAirWorkの両方のCSVを選んでください。");
+      if (!$("overlapWarning").hidden && !$("overlapConfirm").checked)
+        throw new Error("重複の可能性を確認してから統合してください。");
       merged = Core.mergeApplications({
-        normal:normal, airwork:airwork,
+        normal:normal.data, airworkInfo,
         companyCode:$("companySelect").value,
         virtualJobNo:$("jobNoInput").value
       });
@@ -474,7 +612,11 @@
       $("normalCount").textContent = fmt(stats.normalCount);
       $("addedCount").textContent = fmt(stats.addedCount);
       $("totalCount").textContent = fmt(stats.outputCount);
-      $("resultDetails").textContent = "対象企業コード: " + stats.companyCode + " ／ 仮想仕事番号: " + stats.virtualJobNo + " ／ 日別実績: " + stats.dayCount + " 日。元ファイル名: " + normalFileName + " ＋ " + airFileName;
+      $("resultDetails").textContent = "通常CSV " + selected.normal.length +
+        "ファイル＋AirWork CSV " + selected.airwork.length +
+        "ファイル ／ 対象企業コード: " + stats.companyCode +
+        " ／ 仮想仕事番号: " + stats.virtualJobNo +
+        " ／ 日別実績: " + stats.dayCount + " 日。";
       $("resultSection").hidden = false;
       message("件数を確認して統合CSVをダウンロードしてください。", false);
       $("resultSection").scrollIntoView({behavior:"smooth", block:"nearest"});
@@ -486,12 +628,14 @@
     const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const d = new Date();
-    const stamp = String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,"0") + String(d.getDate()).padStart(2,"0");
+    const stamp = String(d.getFullYear()) + String(d.getMonth()+1).padStart(2,"0") +
+      String(d.getDate()).padStart(2,"0");
     const link = document.createElement("a");
     link.href = url; link.download = "application_with_airwork_" + stamp + ".csv";
     document.body.append(link); link.click(); link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1200);
-    $("doneMsg").textContent = "ダウンロードを開始しました。統合CSV（" + fmt(merged.stats.outputCount) + " 行）だけをvalid-appへアップロードしてください。";
+    $("doneMsg").textContent = "ダウンロードを開始しました。統合CSV（" +
+      fmt(merged.stats.outputCount) + " 行）だけをvalid-appへアップロードしてください。";
     $("doneMsg").hidden = false;
   });
 })();
